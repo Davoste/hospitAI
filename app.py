@@ -1,9 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import mysql.connector
+import joblib
 
 app = Flask(__name__)
 CORS(app)  # allows cross-origin requests from Flutter
+model = joblib.load('diagnosis_model.pkl')
 
 # ✅ MySQL connection
 db = mysql.connector.connect(
@@ -128,21 +130,22 @@ def search_patients():
 @app.route('/add_patient_symptoms', methods=['POST'])
 def add_patient_symptoms():
     data = request.get_json()
+
     patient_id = data.get('patient_id')
-    symptoms = data.get('symptom', 'mild')  # 📝 This is actually a symptom description
-    severity = data.get('severity', 'mild')
+    symptoms = data.get('symptoms', '')
+    severity = data.get('severity', '')
     notes = data.get('notes', '')
     diagnosis = data.get('diagnosis', '')
 
     try:
-        # 1️⃣ Confirm the patient exists
+        # # Confirm patient exists
         cursor.execute("SELECT id FROM patients WHERE id = %s", (patient_id,))
         if cursor.fetchone() is None:
             return jsonify({"status": "error", "message": "Patient not found"}), 404
 
-        # 2️⃣ Insert into patient_symptoms
+        # Insert into patient_symptoms
         query = """
-        INSERT INTO patient_symbols (patient_id, date_reported, severity, notes, symptoms, diagnosis)
+        INSERT INTO patient_symptoms (patient_id, date_reported, severity, notes, symptoms, diagnosis)
         VALUES (%s, NOW(), %s, %s, %s, %s)
         """
         values = (patient_id, severity, notes, symptoms, diagnosis)
@@ -155,6 +158,18 @@ def add_patient_symptoms():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+#model dem predect
+@app.route('/predict_diagnosis', methods=['POST'])
+def predict_diagnosis():
+    data = request.get_json()
+    symptoms_text = data.get('symptoms', '')
+
+    if not symptoms_text:
+        return jsonify({'status': 'error', 'message': 'Symptoms required'}), 400
+
+    prediction = model.predict([symptoms_text])[0]
+
+    return jsonify({'status': 'success', 'predicted_diagnosis': prediction}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)

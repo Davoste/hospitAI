@@ -439,18 +439,31 @@ class _PatientsState extends State<Patients> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Name'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: nameController,
+                          decoration: const InputDecoration(labelText: 'Name'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: dobController,
+                          decoration: const InputDecoration(labelText: 'DOB'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: phoneController,
+                          decoration: const InputDecoration(labelText: 'Phone'),
+                        ),
+                      ),
+                    ],
                   ),
-                  TextField(
-                    controller: dobController,
-                    decoration: const InputDecoration(labelText: 'DOB'),
-                  ),
-                  TextField(
-                    controller: phoneController,
-                    decoration: const InputDecoration(labelText: 'Phone'),
-                  ),
+
                   TextField(
                     controller: symptomController,
                     decoration: const InputDecoration(labelText: 'Symptoms'),
@@ -463,6 +476,55 @@ class _PatientsState extends State<Patients> {
               ),
             ),
             actions: [
+              ElevatedButton(
+                onPressed: () async {
+                  final predictionResponse = await http.post(
+                    Uri.parse('http://127.0.0.1:5000/predict_diagnosis'),
+                    headers: {'Content-Type': 'application/json'},
+                    body: jsonEncode({'symptoms': symptomController.text}),
+                  );
+
+                  if (predictionResponse.statusCode == 200) {
+                    final result = jsonDecode(predictionResponse.body);
+                    final predictedDiagnosis = result['predicted_diagnosis'];
+                    print('Predicted diagnosis: $predictedDiagnosis');
+                    showDialog(
+                      context: context,
+                      builder:
+                          (ctx) => AlertDialog(
+                            title: const Text('Prediction Result'),
+                            content: Text(
+                              'Predicted Diagnosis: $predictedDiagnosis',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                    );
+                  } else {
+                    showDialog(
+                      context: context,
+                      builder:
+                          (ctx) => AlertDialog(
+                            title: const Text('Prediction Failed'),
+                            content: Text(
+                              'Status Code: ${predictionResponse.statusCode}\n${predictionResponse.body}',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: const Text('Close'),
+                              ),
+                            ],
+                          ),
+                    );
+                  }
+                },
+                child: const Text('hospitAI'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
                 child: const Text('Cancel'),
@@ -471,7 +533,7 @@ class _PatientsState extends State<Patients> {
                 onPressed: () async {
                   final patientId = patient['id'];
 
-                  // 🔄 Update patient info
+                  // // 🔄 Update patient info
                   final updateResponse = await http.put(
                     Uri.parse(
                       'http://127.0.0.1:5000/update_patient/$patientId',
@@ -494,6 +556,7 @@ class _PatientsState extends State<Patients> {
                       'diagnosis': diagnosisController.text,
                       'notes':
                           '${symptomController.text}\nDiagnosis: ${diagnosisController.text}',
+                      'severity': 'moderate',
                     }),
                   );
 
@@ -501,13 +564,54 @@ class _PatientsState extends State<Patients> {
 
                   if (updateResponse.statusCode == 200 &&
                       symptomResponse.statusCode == 200) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Patient updated')),
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          backgroundColor: Colors.green[100],
+                          title: const Text(
+                            'Success',
+                            style: TextStyle(color: Colors.green),
+                          ),
+                          content: const Text('Patient updated successfully!'),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                _loadData(); // Reload updated data
+                              },
+                              child: const Text(
+                                'OK',
+                                style: TextStyle(color: Colors.green),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
-                    _loadData(); // Reload updated data
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Error saving data')),
+                    // ❌ Show error popup
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          backgroundColor: Colors.red[100],
+                          title: const Text(
+                            'Error',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                          content: const Text('Failed to save patient data.'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text(
+                                'Close',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   }
                 },
